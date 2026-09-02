@@ -1,0 +1,4 @@
+interface:
+  display_name: "Profile Visualizer"
+  short_description: "Render timestamped profiling breakdowns with optimization notes"
+  default_prompt: "Use $profile-visualizer to render the latest before/after profile breakdown with optimization annotations."
