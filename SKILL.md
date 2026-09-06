@@ -7,6 +7,12 @@ description: Render measured profiler component breakdowns as timestamped SVG re
 
 Turn the latest comparable profile evidence into an auditable visual artifact.
 
+For a campaign that prioritizes exact optimizations before quantization, use
+[lossless-first-optimization](../lossless-first-optimization/SKILL.md) to manage
+component eligibility, numerical exceptions, iteration decisions and Amdahl
+headroom. This skill remains responsible for measured breakdown rendering;
+analytical headroom belongs in a separate, explicitly labeled artifact.
+
 ## Completion Rule
 
 After each optimization iteration that changes measured performance:
