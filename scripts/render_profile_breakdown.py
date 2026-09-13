@@ -17,7 +17,7 @@ from typing import Any, Iterable
 
 
 SCHEMA_VERSION = 1
-RENDERER_VERSION = "1.0.0"
+RENDERER_VERSION = "1.1.0"
 TIMESTAMP_RE = re.compile(r"^\d{8}_\d{6}$")
 
 
@@ -478,6 +478,32 @@ def render_svg(document: dict[str, Any], generated_at: str, timestamp: str) -> s
     return "\n".join(svg) + "\n"
 
 
+def render_markdown(document: dict[str, Any], generated_at: str, svg_name: str) -> str:
+    def cell(value: Any) -> str:
+        return str(value).replace("\\", "\\\\").replace("|", "\\|").replace("\n", " ")
+
+    metric = document["metric"]
+    profiles = document["profiles"]
+    lines = [f"# {document['title']}", "", f"Generated: {generated_at}", "",
+             f"Metric: {metric['name']} ({metric['unit']}); {metric['aggregation']}.", "",
+             f"![Measured breakdown]({svg_name})", "",
+             "| Component | " + " | ".join(cell(p["name"]) for p in profiles) + " |",
+             "|---|" + "---:|" * len(profiles)]
+    names = list(dict.fromkeys(c["name"] for p in profiles for c in p["components"]))
+    for name in names:
+        values = [next((c["value"] for c in p["components"] if c["name"] == name), 0.0) for p in profiles]
+        lines.append(f"| {cell(name)} | " + " | ".join(f"{v:.6g}" for v in values) + " |")
+    lines += ["| Total | " + " | ".join(f"{p['total']:.6g}" for p in profiles) + " |", ""]
+    if document["optimizations"]:
+        lines += ["## Implemented Optimizations", ""]
+        for opt in document["optimizations"]:
+            lines.append(f"- {opt['name']}: {opt['description']} Impact: {opt['impact']}")
+    for title, key in (("Notes", "notes"), ("Sources", "sources")):
+        if document[key]:
+            lines += ["", f"## {title}", ""] + [f"- {value}" for value in document[key]]
+    return "\n".join(lines) + "\n"
+
+
 def _timestamp_value(value: str | None) -> tuple[str, str]:
     if value is None:
         current = dt.datetime.now().astimezone()
@@ -494,7 +520,7 @@ def _available_stem(output_dir: Path, base_stem: str, overwrite: bool) -> str:
         return base_stem
     stem = base_stem
     collision = 0
-    while (output_dir / f"{stem}.svg").exists() or (output_dir / f"{stem}.manifest.json").exists():
+    while any((output_dir / f"{stem}{suffix}").exists() for suffix in (".svg", ".manifest.json", ".md")):
         collision += 1
         stem = f"{base_stem}_{collision:02d}"
     return stem
@@ -519,13 +545,15 @@ def render_file(
     chosen_prefix = _slug(prefix or document["title"])
     stem = _available_stem(
         output_dir,
-        f"{chosen_prefix}_profile_breakdown_{timestamp_value}",
+        f"{timestamp_value}_{chosen_prefix}_profile_breakdown",
         overwrite,
     )
     svg_path = output_dir / f"{stem}.svg"
     manifest_path = output_dir / f"{stem}.manifest.json"
+    report_path = output_dir / f"{stem}.md"
 
     svg_path.write_text(render_svg(document, generated_at, timestamp_value), encoding="utf-8")
+    report_path.write_text(render_markdown(document, generated_at, svg_path.name), encoding="utf-8")
     manifest = {
         "schema_version": SCHEMA_VERSION,
         "renderer_version": RENDERER_VERSION,
@@ -534,17 +562,18 @@ def render_file(
         "input_path": str(input_path.resolve()),
         "input_sha256": hashlib.sha256(input_bytes).hexdigest(),
         "output_svg": str(svg_path.resolve()),
+        "output_report": str(report_path.resolve()),
         "normalized_input": document,
     }
     manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    return {"svg": str(svg_path.resolve()), "manifest": str(manifest_path.resolve())}
+    return {"svg": str(svg_path.resolve()), "manifest": str(manifest_path.resolve()), "report": str(report_path.resolve())}
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("input", type=Path, help="normalized profile breakdown JSON")
     parser.add_argument("--output-dir", type=Path, default=None, help="artifact directory; defaults to the input directory")
-    parser.add_argument("--prefix", help="filename prefix; defaults to a slug of the title")
+    parser.add_argument("--prefix", help="descriptive name after the timestamp; defaults to a slug of the title")
     parser.add_argument("--timestamp", help="fixed YYYYMMDD_HHMMSS timestamp for reproduction or tests")
     parser.add_argument("--overwrite", action="store_true", help="overwrite an artifact with the same timestamp")
     return parser.parse_args(argv)

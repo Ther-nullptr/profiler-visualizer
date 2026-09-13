@@ -39,8 +39,15 @@ python3 skills/profile-visualizer/scripts/render_profile_breakdown.py \
 
 The renderer writes:
 
-- `<prefix>_profile_breakdown_YYYYMMDD_HHMMSS.svg`
-- `<prefix>_profile_breakdown_YYYYMMDD_HHMMSS.manifest.json`
+- `YYYYMMDD_HHMMSS_<prefix>_profile_breakdown.svg`
+- `YYYYMMDD_HHMMSS_<prefix>_profile_breakdown.md`
+- `YYYYMMDD_HHMMSS_<prefix>_profile_breakdown.manifest.json`
+
+Put the local timestamp first in every newly generated figure, companion report
+and manifest filename, so sorting works across different experiment names.
+Use the same convention for campaign-level reports, for example
+`YYYYMMDD_HHMMSS_fp8_scale_report.md`. A stable index may link to these reports.
+Do not rename published historical artifacts or break their existing links.
 
 The local timestamp is mandatory and lexicographically sortable. The manifest
 records the normalized input, source digest, renderer version, and generated
@@ -71,7 +78,7 @@ Before citing the figure, verify:
 - the SVG title, workload metadata, units, profile totals, and optimization text
   match the raw artifacts;
 - the current profile is actually the latest successful run;
-- the timestamped SVG and manifest are both tracked or intentionally stored with
+- the timestamp-first SVG, report and manifest are tracked or intentionally stored with
   the benchmark artifacts;
 - the written performance claim uses end-to-end speedup when the figure uses an
   end-to-end denominator, and kernel-only speedup when it uses a kernel boundary.
