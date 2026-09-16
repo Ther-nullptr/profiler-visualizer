@@ -1,6 +1,6 @@
 ---
 name: profile-visualizer
-description: Render measured profiler breakdowns and maintain optimization-history dashboards with incremental/cumulative gains, precision coverage, quality status, and source provenance. Use after measured optimization or when reviewing historical gains; do not turn estimates into measured speedups.
+description: Render measured profiler breakdowns and PNG optimization-history figures with incremental/cumulative gains, precision coverage, quality status, and source provenance. Use after measured optimization or when reviewing historical gains; do not turn estimates into measured speedups.
 ---
 
 # Profile Visualizer
@@ -70,11 +70,21 @@ python3 ~/.codex/skills/profile-visualizer/scripts/render_optimization_history.p
   docs/optimization/ledger.json --output-dir docs/optimization/snapshots
 ```
 
-The renderer produces a self-contained HTML panel, Markdown summary, and
-manifest. Open the HTML directly; no server or external JavaScript service is
-required. Add `--update-index` only to also refresh generated `dashboard.html`
-in the output directory. The panel retains rejected/reverted measurements,
-numerical classes, quality outcomes, coverage, and source-linked profiles.
+The CLI defaults to **PNG**, with an editable SVG companion, Markdown summary,
+and manifest. Each protocol/cohort is exported separately, paginated at six
+runs per image. Show the generated PNG to the user; an HTML page is not required.
+PNG rendering uses CairoSVG and the Cairo runtime, not browser screenshots or
+generative image tools. If these dependencies are missing, report the requirement
+rather than silently switching formats.
+
+Use `--format html` for the optional interactive panel or `--format both` to
+produce both formats. Add `--update-index` only to refresh `dashboard.md` for
+PNG and/or `dashboard.html` for HTML. The default Python `render_file()` API
+retains HTML compatibility; pass `output_format="png"` for direct API use.
+
+Figures retain rejected/reverted measurements, numerical classes, quality
+references and optimization coverage. Full configurations, quality assessments,
+source links and component-profile references remain in the companion evidence.
 
 When importing historical records, preserve unknown settings as unknown.
 A recipe parent is not proof of measured improvement. Missing original-anchor
@@ -111,7 +121,8 @@ artifacts or silently overwrite a snapshot; history collisions receive a suffix.
 
 Before citing output, verify its selected workload, precision, baseline IDs,
 units, sample counts, numerical labels, quality reference, and active options.
-Check desktop/mobile readability for a new panel layout and inspect embedded
-SVGs. The manifest records normalized evidence and source digests.
+Inspect PNG dimensions, nonblank pixels, labels and text layout before delivery.
+For optional HTML changes, check desktop/mobile readability and embedded SVGs.
+The manifest records normalized evidence and source digests.
 
 A history-only refresh must not be reported as a new optimization experiment.

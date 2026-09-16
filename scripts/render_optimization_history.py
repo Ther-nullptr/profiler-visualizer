@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render a validated optimization ledger as an offline HTML dashboard."""
+"""Render a validated optimization ledger as PNG figures or an HTML dashboard."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ import datetime as dt
 import hashlib
 import html
 import json
+import math
 import os
 from pathlib import Path
 import sys
@@ -21,7 +22,7 @@ if str(SCRIPT_DIR) not in sys.path:
 import render_profile_breakdown as breakdown
 from optimization_history import HistoryError, load_history
 
-RENDERER_VERSION = "1.0.0"
+RENDERER_VERSION = "1.1.0"
 ASSETS = SCRIPT_DIR.parent / "assets"
 MAX_SOURCE_HASH_BYTES = 32 * 1024 * 1024
 
@@ -370,7 +371,7 @@ def render_html(document, images, generated_at, input_dir, output_dir):
 """
 
 
-def render_markdown(document, generated_at, html_name):
+def render_markdown(document, generated_at, artifact_name, *, png_names=()):
     def cell(value):
         return str(value).replace("|", "\\|").replace("\n", " ")
 
@@ -381,11 +382,16 @@ def render_markdown(document, generated_at, html_name):
         "",
         f"Generated: {generated_at}",
         "",
-        f"Evidence: **{document['evidence_kind']}**. [Dashboard]({html_name}).",
+        f"Evidence: **{document['evidence_kind']}**. [Overview]({artifact_name}).",
         "",
         "| Run | Protocol / cohort | Configuration | Time | n | Adoption | Quality |",
         "|---|---|---|---:|---:|---|---|",
     ]
+    if png_names:
+        lines[6:6] = [
+            f"![History page {index}]({name})\n"
+            for index, name in enumerate(png_names, 1)
+        ]
     for run in document["runs"]:
         state = states[run["state_id"]]
         unit = protocols[run["protocol_id"]]["metric"]["unit"]
@@ -424,40 +430,116 @@ def render_markdown(document, generated_at, html_name):
 
 
 def render_file(
-    input_path, output_dir, *, prefix=None, timestamp=None, update_index=False
+    input_path,
+    output_dir,
+    *,
+    prefix=None,
+    timestamp=None,
+    update_index=False,
+    output_format="html",
+    png_scale=1.5,
 ):
+    # Keep the existing Python API default; the CLI defaults to PNG.
+    if output_format not in ("png", "html", "both"):
+        raise HistoryError("output_format must be png, html, or both")
+    wants_png = output_format in ("png", "both")
+    wants_html = output_format in ("html", "both")
+    if wants_png:
+        if (
+            isinstance(png_scale, bool)
+            or not isinstance(png_scale, (float, int))
+            or not math.isfinite(png_scale)
+            or not 0 < png_scale <= 3
+        ):
+            raise HistoryError("png_scale must be finite and between 0 and 3")
+        try:
+            import cairosvg
+        except (ImportError, OSError) as error:
+            raise HistoryError(
+                "PNG output requires CairoSVG and the Cairo runtime; install them in the rendering environment or select --format html"
+            ) from error
+        from history_figure import render_pages
     input_bytes = input_path.read_bytes()
     document = load_history(input_path, content=input_bytes)
     timestamp_value, generated_at = breakdown._timestamp_value(timestamp)
     output_dir = output_dir.resolve()
     images, profile_sources, warnings = load_profiles(
-        document, input_path.resolve().parent, generated_at, timestamp_value
+        document,
+        input_path.resolve().parent,
+        generated_at,
+        timestamp_value,
+        render_images=wants_html,
     )
     document["notes"].extend(warnings)
     source_evidence = fingerprint_sources(document, input_path.resolve().parent)
     output_dir.mkdir(parents=True, exist_ok=True)
     base = f"{timestamp_value}_{breakdown._slug(prefix or document['title'])}_optimization_history"
     stem, collision = base, 0
-    while any(
-        (output_dir / f"{stem}{suffix}").exists()
-        for suffix in (".html", ".md", ".manifest.json")
+    while (
+        any(
+            (output_dir / f"{stem}{suffix}").exists()
+            for suffix in (".html", ".png", ".svg", ".md", ".manifest.json")
+        )
+        or any(output_dir.glob(f"{stem}_*.png"))
+        or any(output_dir.glob(f"{stem}_*.svg"))
     ):
         collision += 1
         stem = f"{base}_{collision:02d}"
     html_path, report_path, manifest_path = (
         output_dir / f"{stem}{suffix}" for suffix in (".html", ".md", ".manifest.json")
     )
-    page = render_html(
-        document, images, generated_at, input_path.resolve().parent, output_dir
-    )
-    provenance_link = (
-        f'<p><a href="{escape(manifest_path.name)}">Evidence manifest</a> / '
-        f'<a href="{escape(report_path.name)}">Markdown report</a></p>'
-    )
-    page = page.replace("</footer>", provenance_link + "</footer>", 1)
-    html_path.write_text(page, encoding="utf-8")
+    result = {"report": str(report_path), "manifest": str(manifest_path)}
+    figure_outputs = []
+    if wants_png:
+        pages = render_pages(document, generated_at)
+        for index, figure in enumerate(pages, 1):
+            figure_stem = stem if len(pages) == 1 else f"{stem}_p{index:02d}"
+            svg_path = output_dir / f"{figure_stem}.svg"
+            png_path = output_dir / f"{figure_stem}.png"
+            png_bytes = cairosvg.svg2png(
+                bytestring=figure["svg"].encode("utf-8"), scale=png_scale
+            )
+            svg_path.write_text(figure["svg"], encoding="utf-8")
+            png_path.write_bytes(png_bytes)
+            figure_outputs.append(
+                {key: value for key, value in figure.items() if key != "svg"}
+                | {
+                    "svg": str(svg_path),
+                    "png": str(png_path),
+                    "scale": png_scale,
+                }
+            )
+        result["pngs"] = [figure["png"] for figure in figure_outputs]
+        result["svgs"] = [figure["svg"] for figure in figure_outputs]
+        primary = next(
+            (
+                index
+                for index, figure in enumerate(figure_outputs)
+                if document["current_run_id"] in figure["run_ids"]
+            ),
+            0,
+        )
+        result["png"] = result["pngs"][primary]
+    if wants_html:
+        page = render_html(
+            document, images, generated_at, input_path.resolve().parent, output_dir
+        )
+        provenance_link = (
+            f'<p><a href="{escape(manifest_path.name)}">Evidence manifest</a> / '
+            f'<a href="{escape(report_path.name)}">Markdown report</a></p>'
+        )
+        page = page.replace("</footer>", provenance_link + "</footer>", 1)
+        html_path.write_text(page, encoding="utf-8")
+        result["html"] = str(html_path)
+    first_artifact = Path(result["png"] if wants_png else result["html"]).name
     report_path.write_text(
-        render_markdown(document, generated_at, html_path.name), encoding="utf-8"
+        render_markdown(
+            document,
+            generated_at,
+            first_artifact,
+            png_names=[Path(item["png"]).name for item in figure_outputs],
+        ),
+        encoding="utf-8",
     )
     manifest = {
         "renderer_version": RENDERER_VERSION,
@@ -468,22 +550,29 @@ def render_file(
         "profile_sources": profile_sources,
         "source_evidence": source_evidence,
         "normalized_input": document,
-        "output_html": str(html_path),
+        "output_format": output_format,
+        "output_html": str(html_path) if wants_html else None,
+        "figure_outputs": figure_outputs,
+        "png_backend": (
+            {"name": "CairoSVG", "version": cairosvg.__version__} if wants_png else None
+        ),
         "output_report": str(report_path),
     }
     manifest_path.write_text(
         json.dumps(manifest, indent=2, ensure_ascii=False, allow_nan=False) + "\n",
         encoding="utf-8",
     )
-    result = {
-        "html": str(html_path),
-        "report": str(report_path),
-        "manifest": str(manifest_path),
-    }
     if update_index:
-        index = output_dir / "dashboard.html"
-        index.write_text(page, encoding="utf-8")
-        result["index"] = str(index)
+        if wants_png:
+            index = output_dir / "dashboard.md"
+            index.write_text(report_path.read_text(encoding="utf-8"), encoding="utf-8")
+            result["index"] = str(index)
+        if wants_html:
+            html_index = output_dir / "dashboard.html"
+            html_index.write_text(page, encoding="utf-8")
+            result["html_index"] = str(html_index)
+            if not wants_png:
+                result["index"] = str(html_index)
     return result
 
 
@@ -492,11 +581,23 @@ def main(argv=None):
     parser.add_argument("input", type=Path, help="optimization history JSON")
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--prefix")
+    parser.add_argument(
+        "--format",
+        choices=("png", "html", "both"),
+        default="png",
+        help="output format (default: png)",
+    )
+    parser.add_argument(
+        "--png-scale",
+        type=float,
+        default=1.5,
+        help="PNG resolution scale, up to 3 (default: 1.5)",
+    )
     parser.add_argument("--timestamp", help="YYYYMMDD_HHMMSS, for reproduction/tests")
     parser.add_argument(
         "--update-index",
         action="store_true",
-        help="also replace generated dashboard.html",
+        help="also refresh dashboard.md for PNG and/or dashboard.html for HTML",
     )
     parser.add_argument("--validate-only", action="store_true")
     args = parser.parse_args(argv)
@@ -520,6 +621,8 @@ def main(argv=None):
                 prefix=args.prefix,
                 timestamp=args.timestamp,
                 update_index=args.update_index,
+                output_format=args.format,
+                png_scale=args.png_scale,
             )
     except (HistoryError, breakdown.InputError, OSError) as error:
         print(f"profile-visualizer history: {error}", file=sys.stderr)

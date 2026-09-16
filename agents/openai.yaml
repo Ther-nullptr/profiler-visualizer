@@ -1,4 +1,4 @@
 interface:
   display_name: "Profile Visualizer"
-  short_description: "Measured breakdowns and cumulative optimization history"
-  default_prompt: "Use $profile-visualizer to update the measured breakdown and optimization-history dashboard, keeping cumulative gains tied to explicit comparable baselines."
+  short_description: "PNG/SVG profiles and cumulative optimization history"
+  default_prompt: "Use $profile-visualizer to update the measured breakdown and export optimization history as PNG, keeping gains tied to explicit comparable baselines."

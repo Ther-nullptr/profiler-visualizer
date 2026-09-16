@@ -2,7 +2,9 @@
 
 Use this mode to maintain cumulative progress and precision branches. The
 existing [breakdown schema](input-schema.md) and SVG renderer remain unchanged.
-The history renderer uses only the Python standard library and local assets.
+The history CLI defaults to native PNG figures. PNG uses CairoSVG and the Cairo
+runtime; the optional HTML path uses only the Python standard library and local
+assets. No browser is needed to export PNG, and no HTML file is emitted in PNG mode.
 
 ## What the Panel Records
 
@@ -175,10 +177,28 @@ savings, preserves numerical/adoption/quality labels, shows enabled-optimization
 coverage, and links detailed configuration/source/profile evidence. It does not
 claim causal Shapley attribution or automatically promote a candidate.
 
-Outputs are timestamp-first HTML, Markdown and manifest snapshots. Repeated
-timestamps receive collision suffixes. `--update-index` additionally refreshes
-generated `dashboard.html`; leave it off to preserve an existing page.
-Raw profiles and videos remain outside the tracked ledger.
+Outputs default to timestamp-first PNG, editable SVG, Markdown and manifest
+snapshots. Use `--format html` for the previous interactive output or
+`--format both` to retain it alongside the images. The direct Python API keeps
+its previous HTML default for compatibility; set `output_format="png"` there.
+
+PNG pages do not mix protocols or measurement cohorts. At most six runs appear
+on one image; further pages have `_p01`, `_p02`, ... suffixes, and the manifest
+maps every page back to its protocol, cohort, and run IDs. Bars within the same
+cohort share the same scale across pages. The `png` result points to the page
+containing the designated current run; `pngs` lists all pages. The default
+`--png-scale 1.5` produces 2400-pixel-wide images; values up to 3 are supported.
+
+PNG is a static overview, including quality references and extra measured metrics.
+Full settings, assessments, source paths and profile references remain in the
+Markdown/manifest; an interactive panel can additionally embed the component SVGs.
+When necessary, install `cairosvg` in the rendering environment and provide its
+platform Cairo runtime. Do not change the model environment's PyTorch to render a figure.
+
+Repeated timestamps receive collision suffixes. `--update-index` refreshes
+generated `dashboard.md` for PNG and/or `dashboard.html` for HTML. It does not
+delete older artifacts or replace snapshots. Raw profiles and videos remain
+outside the tracked ledger.
 
 The manifest fingerprints the ledger bytes, referenced normalized profiles,
 and local timing/quality sources up to 32 MiB each. Larger raw files are marked
