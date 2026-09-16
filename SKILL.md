@@ -1,84 +1,117 @@
 ---
 name: profile-visualizer
-description: Render measured profiler component breakdowns as timestamped SVG reports with before/after comparisons, optimization annotations, and source provenance. Use after performance optimization or when comparing profile runs; do not use inferred timings as measured data.
+description: Render measured profiler breakdowns and maintain optimization-history dashboards with incremental/cumulative gains, precision coverage, quality status, and source provenance. Use after measured optimization or when reviewing historical gains; do not turn estimates into measured speedups.
 ---
 
 # Profile Visualizer
 
-Turn the latest comparable profile evidence into an auditable visual artifact.
+Maintain one evidence workflow with two views: **component breakdown** for a
+measured iteration and **optimization history** for an experiment campaign.
+Keep the existing skill name and breakdown format; no separate ledger skill
+is needed.
 
-For a campaign that prioritizes exact optimizations before quantization, use
-[lossless-first-optimization](../lossless-first-optimization/SKILL.md) to manage
-component eligibility, numerical exceptions, iteration decisions and Amdahl
-headroom. This skill remains responsible for measured breakdown rendering;
-analytical headroom belongs in a separate, explicitly labeled artifact.
+Read existing reports first. A request to visualize or summarize results does
+not authorize new GPU runs, frequency changes, uploads, or a retrospective
+benchmark campaign. Record missing comparisons as pending.
 
-## Completion Rule
+## Choose the View
 
-After each optimization iteration that changes measured performance:
+- For a single profile or a before/after breakdown, use
+  [input-schema.md](references/input-schema.md) and the existing SVG renderer.
+- For cumulative progress, precision branches, or a historical dashboard, use
+  [optimization-history.md](references/optimization-history.md). The ledger
+  references the same breakdown JSON instead of duplicating component times.
+- After a measured optimization in an established campaign, update both the
+  affected breakdown and the project's ledger from that round's evidence.
 
-1. Re-profile the affected end-to-end workload under the same protocol as the
-   comparison run.
-2. Normalize the measured component times using
-   [references/input-schema.md](references/input-schema.md).
-3. Render the report with the bundled script.
-4. Inspect the SVG and link it from the optimization report beside the raw
-   profile sources.
+For a new multi-iteration optimization campaign, start its project ledger with
+the first supported snapshot, even if original-anchor comparisons are pending.
+A one-off operator plot does not need a campaign ledger.
 
-Do not call an optimization iteration complete while its current breakdown is
-missing. If a comparable baseline is unavailable, render a one-profile snapshot
-and state that no speedup claim is supported.
+The skill owns recording, validation, and visualization. Numerical acceptance
+and next-step optimization decisions belong to the experiment protocol, or
+[lossless-first-optimization](../lossless-first-optimization/SKILL.md) when used.
+Analytical Amdahl scenarios remain separate from measured history.
 
-## Render
+## Component Breakdown
+
+1. Use an affected end-to-end profile under the comparison protocol. During an
+   authorized optimization run, collect it before closing the measured iteration.
+2. Normalize measured values, render the SVG, and inspect its labels and layout.
+3. Link it from the report with the configuration and original profile sources.
+
+If there is no comparable baseline, render a single snapshot without a speedup
+claim. If a profile is missing, disclose that gap instead of inventing a
+component distribution.
 
 ```bash
-python3 skills/profile-visualizer/scripts/render_profile_breakdown.py \
-  profile-breakdown.json \
-  --output-dir docs/performance/figures
+python3 ~/.codex/skills/profile-visualizer/scripts/render_profile_breakdown.py \
+  profile-breakdown.json --output-dir docs/performance/figures
 ```
 
-The renderer writes:
+The existing command and schema remain backward compatible. It emits SVG,
+Markdown, and a manifest with timestamp-first names.
 
-- `YYYYMMDD_HHMMSS_<prefix>_profile_breakdown.svg`
-- `YYYYMMDD_HHMMSS_<prefix>_profile_breakdown.md`
-- `YYYYMMDD_HHMMSS_<prefix>_profile_breakdown.manifest.json`
+## Optimization History
 
-Put the local timestamp first in every newly generated figure, companion report
-and manifest filename, so sorting works across different experiment names.
-Use the same convention for campaign-level reports, for example
-`YYYYMMDD_HHMMSS_fp8_scale_report.md`. A stable index may link to these reports.
-Do not rename published historical artifacts or break their existing links.
+The unit of history is a **configuration state**, not just a Git commit.
+Separate states, measurement runs, and explicit comparison edges. Store the
+project ledger in the model repository, not inside the reusable skill.
 
-The local timestamp is mandatory and lexicographically sortable. The manifest
-records the normalized input, source digest, renderer version, and generated
-filename. Use `--timestamp` only to reproduce an existing artifact or in tests;
-do not reuse an old timestamp for a new measurement.
+Maintain the original reference, matched optimized full-precision reference,
+and current configuration when measurements exist. Each comparison names its
+actual baseline and candidate run. Compute differences and ratios directly;
+never multiply ratios from separate rounds into a cumulative claim.
+
+```bash
+python3 ~/.codex/skills/profile-visualizer/scripts/render_optimization_history.py \
+  docs/optimization/ledger.json --validate-only
+python3 ~/.codex/skills/profile-visualizer/scripts/render_optimization_history.py \
+  docs/optimization/ledger.json --output-dir docs/optimization/snapshots
+```
+
+The renderer produces a self-contained HTML panel, Markdown summary, and
+manifest. Open the HTML directly; no server or external JavaScript service is
+required. Add `--update-index` only to also refresh generated `dashboard.html`
+in the output directory. The panel retains rejected/reverted measurements,
+numerical classes, quality outcomes, coverage, and source-linked profiles.
+
+When importing historical records, preserve unknown settings as unknown.
+A recipe parent is not proof of measured improvement. Missing original-anchor
+measurements stay pending. Select the designated current run explicitly,
+rather than promoting the fastest candidate automatically.
 
 ## Evidence Contract
 
-- Put only measured values in `profiles[].components`; never backfill a category
-  with an Amdahl-law estimate or a theoretical kernel speedup.
-- Compare runs only when model, input shape, warmup, repetition statistic,
-  clocks/power mode, precision scope, and measurement boundary are compatible.
-- Include profile files, benchmark summaries, or trace paths in `sources`.
-- Make the first profile the baseline and the last profile the current result.
-- Keep component names stable across iterations so colors and rows remain
-  comparable. The renderer unions missing components and displays them as zero.
-- Account for the full measured total. A small unclassified remainder is shown
-  explicitly as `Unattributed`; component sums above the declared total are an
-  error.
-- Describe concrete implemented changes in `optimizations`, including the
-  affected components and measured impact. Keep rejected experiments in the
-  written report, not in the list of active optimizations.
+- Compare fixed workloads and declared intervention variables. Changing shape,
+  hardware/power, workload, warmup, statistic, or timing boundary needs a separate
+  protocol; comparison edges must also share a reviewed measurement cohort.
+- For matched-precision gains, require the same known shared configuration and
+  shared optimization coverage. A Decoder replacement is not just GEMM precision.
+- Keep adoption status independent of quality. Numerical classes are relative to
+  the parent; exact FP4 fusion does not make FP4 equivalent to BF16.
+- Retain repeated samples and their spread; do not infer statistical confidence
+  or quality acceptance from too few samples or a single proxy metric.
+- Record only measured component times. Keep names stable and show unclassified
+  time explicitly. The legacy breakdown renderer treats omitted categories as
+  zero, so do not use omission to represent an unknown component.
+- Do not add overlapping GPU durations into a wall-clock total. Keep profiled
+  GPU work, clean service time, and arrival-to-visible latency separate.
+- Incremental savings are conditional on the recorded parent. Without an
+  isolated ablation, attribute a coupled change to the bundle, not each member.
+- Preserve original reports and local raw sources. Track compact ledger JSON,
+  reports, and diagrams; keep large traces, videos, and tensors local.
 
-## Review Gate
+## Output and Review
 
-Before citing the figure, verify:
+Use `YYYYMMDD_HHMMSS_<name>_<artifact>` for every new snapshot, figure, report,
+and manifest. Keep the timestamp first across different experiment names.
+Use a fixed timestamp only for reproduction or tests. Do not rename historical
+artifacts or silently overwrite a snapshot; history collisions receive a suffix.
 
-- the SVG title, workload metadata, units, profile totals, and optimization text
-  match the raw artifacts;
-- the current profile is actually the latest successful run;
-- the timestamp-first SVG, report and manifest are tracked or intentionally stored with
-  the benchmark artifacts;
-- the written performance claim uses end-to-end speedup when the figure uses an
-  end-to-end denominator, and kernel-only speedup when it uses a kernel boundary.
+Before citing output, verify its selected workload, precision, baseline IDs,
+units, sample counts, numerical labels, quality reference, and active options.
+Check desktop/mobile readability for a new panel layout and inspect embedded
+SVGs. The manifest records normalized evidence and source digests.
+
+A history-only refresh must not be reported as a new optimization experiment.

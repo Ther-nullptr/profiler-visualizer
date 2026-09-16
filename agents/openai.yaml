@@ -1,4 +1,4 @@
 interface:
   display_name: "Profile Visualizer"
-  short_description: "Render timestamped profiling breakdowns with optimization notes"
-  default_prompt: "Use $profile-visualizer to render the latest before/after profile breakdown with optimization annotations."
+  short_description: "Measured breakdowns and cumulative optimization history"
+  default_prompt: "Use $profile-visualizer to update the measured breakdown and optimization-history dashboard, keeping cumulative gains tied to explicit comparable baselines."
