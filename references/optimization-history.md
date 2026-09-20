@@ -213,7 +213,7 @@ and expandable records retain all comparison types, including cumulative and
 matched-precision edges. The page links its manifest and Markdown report.
 
 An optional browser smoke check is available at `tests/check_history_browser.cjs`
-in the skills repository. Provide an installed Playwright module through
+in this repository. Provide an installed Playwright module through
 `PLAYWRIGHT_MODULE`, a compatible browser through `CHROMIUM_PATH`, then pass
 the generated HTML path and a local screenshot directory. It checks desktop,
 mobile, cohort switching, evidence links, and embedded profiles without running

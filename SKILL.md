@@ -29,8 +29,9 @@ the first supported snapshot, even if original-anchor comparisons are pending.
 A one-off operator plot does not need a campaign ledger.
 
 The skill owns recording, validation, and visualization. Numerical acceptance
-and next-step optimization decisions belong to the experiment protocol, or
-[lossless-first-optimization](../lossless-first-optimization/SKILL.md) when used.
+and next-step optimization decisions belong to the experiment protocol.
+If installed, `lossless-first-optimization` can coordinate those decisions;
+it is optional and is not a runtime dependency of this standalone repository.
 Analytical Amdahl scenarios remain separate from measured history.
 
 ## Component Breakdown

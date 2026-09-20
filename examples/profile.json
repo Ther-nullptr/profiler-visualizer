@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "title": "SYNTHETIC component breakdown - not measured performance",
+  "subtitle": "Illustrative values for the standalone renderer",
+  "metric": {"name": "GPU operation time", "unit": "ms", "aggregation": "synthetic kernel-sum fixture", "lower_is_better": true},
+  "context": {"hardware": "synthetic fixture", "workload": "fixed demonstration workload"},
+  "profiles": [
+    {"name": "Optimized BF16", "total": 70, "components": [
+      {"name": "GEMM", "value": 30}, {"name": "Attention", "value": 25},
+      {"name": "Quantization producer", "value": 0}, {"name": "Other GPU work", "value": 15}
+    ]},
+    {"name": "FP8", "total": 45, "components": [
+      {"name": "GEMM", "value": 12}, {"name": "Attention", "value": 25},
+      {"name": "Quantization producer", "value": 8}, {"name": "Other GPU work", "value": 0}
+    ]}
+  ],
+  "optimizations": [{
+    "name": "Illustrative precision change", "description": "Synthetic accounting example with explicit packing cost.",
+    "impact": "Demonstration only; no hardware speedup claim.", "components": ["GEMM", "Quantization producer"]
+  }],
+  "notes": [
+    "All numbers are synthetic. This file is a rendering fixture, not empirical performance evidence.",
+    "GPU work and complete service latency have different boundaries; do not substitute one for the other."
+  ],
+  "sources": ["Synthetic values embedded in this example file"]
+}

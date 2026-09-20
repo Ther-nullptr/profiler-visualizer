@@ -1,0 +1,36 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+node_modules/
+.DS_Store
+
+# Generated figures, reports, and local experiment data.
+/outputs/
+/output/
+/profile/
+/profiles/
+/results/
+*.nsys-rep
+*.ncu-rep
+*.qdrep
+*.sqlite*
+*.log
+*.pt
+*.pth
+*.safetensors
+*.mp4
+*.webm
+
+# Credentials and local configuration.
+.env
+.env.*
+!.env.example
+*.pem
+*.key

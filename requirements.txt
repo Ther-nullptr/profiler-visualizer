@@ -1,0 +1,2 @@
+# Tested PNG renderer. The system Cairo runtime is also required.
+CairoSVG==2.9.1

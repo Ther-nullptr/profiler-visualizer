@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "title": "SYNTHETIC optimization history",
+  "evidence_kind": "synthetic",
+  "current_run_id": "fp8-run",
+  "protocols": [{
+    "id": "demo", "label": "Fixed synthetic workload", "original_state_id": "original",
+    "workload": {"model": "fixture", "input": "fixed", "steps": "fixed", "warmup": "excluded"},
+    "environment": {"hardware": "fixture", "clocks": "fixed", "software": "fixture"},
+    "metric": {"name": "Complete service latency", "unit": "ms", "statistic": "mean"}
+  }],
+  "optimizations": [
+    {"id": "common-fusion", "label": "Shared implementation fusion", "scope": "shared"},
+    {"id": "fp8-producer", "label": "FP8 producer", "scope": "precision"}
+  ],
+  "states": [
+    {"id": "original", "label": "Original BF16", "revision": "synthetic-v0", "precision": "bf16",
+     "classification": "reference", "status": "accepted", "description": "Synthetic original reference.",
+     "shared_config": {"decoder": "original", "attention": "fixed", "residual": "fp32"}, "active_optimizations": []},
+    {"id": "common", "parent_id": "original", "label": "Optimized BF16", "revision": "synthetic-v1", "precision": "bf16",
+     "classification": "exact", "status": "accepted", "description": "Synthetic common implementation change.",
+     "shared_config": {"decoder": "original", "attention": "fixed", "residual": "fp32"}, "active_optimizations": ["common-fusion"]},
+    {"id": "fp8", "parent_id": "common", "label": "FP8 candidate", "revision": "synthetic-v2", "precision": "fp8",
+     "classification": "lossy", "status": "experimental", "description": "Synthetic precision change; quality is not assessed.",
+     "shared_config": {"decoder": "original", "attention": "fixed", "residual": "fp32"}, "active_optimizations": ["common-fusion", "fp8-producer"]}
+  ],
+  "runs": [
+    {"id": "original-run", "state_id": "original", "protocol_id": "demo", "cohort_id": "synthetic-session",
+     "recorded_at": "2026-09-20T10:00:00+08:00", "samples": [98, 102], "sources": ["history.json"]},
+    {"id": "common-run", "state_id": "common", "protocol_id": "demo", "cohort_id": "synthetic-session",
+     "recorded_at": "2026-09-20T10:01:00+08:00", "samples": [78, 82], "sources": ["history.json"],
+     "profile": {"path": "profile.json", "name": "Optimized BF16"}},
+    {"id": "fp8-run", "state_id": "fp8", "protocol_id": "demo", "cohort_id": "synthetic-session",
+     "recorded_at": "2026-09-20T10:02:00+08:00", "samples": [59, 61], "sources": ["history.json"],
+     "quality": {"status": "unmeasured"}, "profile": {"path": "profile.json", "name": "FP8"}}
+  ],
+  "comparisons": [
+    {"id": "common-step", "kind": "incremental", "label": "Apply shared fusion", "baseline_run_id": "original-run", "candidate_run_id": "common-run"},
+    {"id": "common-total", "kind": "cumulative", "label": "Optimized BF16 versus original", "baseline_run_id": "original-run", "candidate_run_id": "common-run"},
+    {"id": "fp8-step", "kind": "incremental", "label": "Apply FP8", "baseline_run_id": "common-run", "candidate_run_id": "fp8-run"},
+    {"id": "fp8-total", "kind": "cumulative", "label": "FP8 versus original", "baseline_run_id": "original-run", "candidate_run_id": "fp8-run"},
+    {"id": "fp8-matched", "kind": "matched_precision", "label": "Matched optimized BF16 versus FP8", "baseline_run_id": "common-run", "candidate_run_id": "fp8-run"}
+  ],
+  "notes": [
+    "All timings, configurations, revisions, and timestamps in this example are synthetic, not model-performance evidence.",
+    "Direct ratios demonstrate accounting only: 100/60 versus original, and 80/60 versus matched optimized BF16.",
+    "Quality remains unmeasured. A synthetic speed difference does not establish quality retention or deployment readiness.",
+    "profile.json illustrates a separate GPU-work boundary, not complete service time."
+  ]
+}
